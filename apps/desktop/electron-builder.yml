@@ -1,0 +1,82 @@
+appId: com.opengpu.desktop
+productName: OpenGPU
+directories:
+  output: release
+files:
+  - dist/**/*
+  - "!node_modules/**/*"
+  - "node_modules/node_modules/**/*"
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: resources/icon.ico
+  artifactName: "${productName}-${version}-win-${arch}.${ext}"
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: OpenGPU
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico
+  installerHeaderIcon: resources/icon.ico
+mac:
+  target:
+    - target: dmg
+      arch:
+        - universal
+  icon: resources/icon.icns
+  category: public.app-category.developer-tools
+  hardenedRuntime: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+dmg:
+  sign: false
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+    - target: rpm
+      arch:
+        - x64
+  icon: resources/icons
+  category: Utility
+  executableName: opengpu
+deb:
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - libatspi2.0-0
+    - libsecret-1-0
+rpm:
+  depends:
+    - gtk3
+    - libnotify
+    - nss
+    - libXScrnSaver
+appImage:
+  artifactName: "${productName}-${version}-${arch}.AppImage"
+publish:
+  provider: github
+  owner: opengpu
+  repo: opengpu-desktop

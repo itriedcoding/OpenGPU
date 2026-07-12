@@ -1,0 +1,213 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// For PostgreSQL, replace the above with:
+// datasource db {
+//   provider = "postgresql"
+//   url      = env("DATABASE_URL")
+// }
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String
+  name          String
+  role          String    @default("user") // user | provider | admin
+  avatar        String?
+  stripeCustomerId String? @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  gpuNodes      GpuNode[]
+  rentals       Rental[]
+  payments      Payment[]
+  apiKeys       ApiKey[]
+  jobs          Job[]
+  providerPayouts ProviderPayout[]
+
+  @@map("users")
+}
+
+model GpuNode {
+  id            String    @id @default(uuid())
+  name          String
+  description   String?
+  model         String    // RTX 4090, A100, H100, etc.
+  vram          Int       // VRAM in GB
+  memory        Int       // System RAM in GB
+  storage       Int       // Storage in GB
+  cores         Int?      // CUDA cores
+  clockSpeed    Float?    // GHz
+  pricePerHour  Float     // Price per hour in USD
+  location      String    // Datacenter location
+  country       String
+  latency       Int?      // ms
+  status        String    @default("available") // available | rented | maintenance | offline
+  online        Boolean   @default(true)
+  lastHeartbeat DateTime?
+  agentVersion  String?
+  ipAddress     String?
+  port          Int?
+  apiKey        String?   @unique
+
+  providerId    String
+  provider      User      @relation(fields: [providerId], references: [id])
+
+  metrics       NodeMetrics[]
+  rentals       Rental[]
+  jobs          Job[]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([model])
+  @@index([status])
+  @@index([pricePerHour])
+  @@index([providerId])
+  @@map("gpu_nodes")
+}
+
+model Rental {
+  id            String    @id @default(uuid())
+  gpuNodeId     String
+  gpuNode       GpuNode   @relation(fields: [gpuNodeId], references: [id])
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  status        String    @default("active") // active | completed | cancelled | expired
+  startedAt     DateTime  @default(now())
+  expiresAt     DateTime?
+  stoppedAt     DateTime?
+  totalHours    Float     @default(0)
+  totalCost     Float     @default(0)
+  billingCycle  String    @default("hourly") // hourly | daily | monthly
+
+  payments      Payment[]
+  jobs          Job[]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([gpuNodeId])
+  @@index([status])
+  @@map("rentals")
+}
+
+model Payment {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  rentalId      String?
+  rental        Rental?   @relation(fields: [rentalId], references: [id])
+  amount        Float
+  currency      String    @default("usd")
+  status        String    @default("pending") // pending | completed | failed | refunded
+  stripePaymentIntentId String? @unique
+  stripePaymentMethodId String?
+  description   String?
+  metadata      String?   // JSON string for extra data
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@map("payments")
+}
+
+model ApiKey {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  name          String
+  key           String    @unique
+  permissions   String    @default("read") // read | write | admin
+  lastUsedAt    DateTime?
+  expiresAt     DateTime?
+  active        Boolean   @default(true)
+
+  createdAt     DateTime  @default(now())
+
+  @@index([key])
+  @@index([userId])
+  @@map("api_keys")
+}
+
+model Job {
+  id            String    @id @default(uuid())
+  gpuNodeId     String
+  gpuNode       GpuNode   @relation(fields: [gpuNodeId], references: [id])
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  rentalId      String?
+  rental        Rental?   @relation(fields: [rentalId], references: [id])
+  name          String
+  status        String    @default("pending") // pending | running | completed | failed | cancelled
+  type          String    @default("inference") // inference | training | fine-tuning | rendering
+  command       String?
+  progress      Int       @default(0)
+  gpuUtilization Float?
+  memoryUsage   Float?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  error         String?
+  output        String?
+  config        String?   // JSON string for job config
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([gpuNodeId])
+  @@index([status])
+  @@map("jobs")
+}
+
+model NodeMetrics {
+  id            String    @id @default(uuid())
+  gpuNodeId     String
+  gpuNode       GpuNode   @relation(fields: [gpuNodeId], references: [id])
+  gpuUtilization Float?
+  memoryUtilization Float?
+  temperature   Float?
+  powerUsage    Float?
+  fanSpeed      Float?
+  diskUsage     Float?
+  networkIn     Float?
+  networkOut    Float?
+  cpuUsage      Float?
+  activeRental  String?
+
+  createdAt     DateTime  @default(now())
+
+  @@index([gpuNodeId])
+  @@index([createdAt])
+  @@map("node_metrics")
+}
+
+model ProviderPayout {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  amount        Float
+  currency      String    @default("usd")
+  status        String    @default("pending") // pending | processing | completed | failed
+  method        String    @default("stripe") // stripe | paypal | bank
+  stripeTransferId String?
+  bankAccount   String?
+  processedAt   DateTime?
+  notes         String?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@map("provider_payouts")
+}

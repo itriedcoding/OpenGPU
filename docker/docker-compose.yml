@@ -1,0 +1,114 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # API Server
+  # ============================================
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    container_name: opengpu-api
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - API_PORT=3000
+      - DATABASE_URL=sqlite:./data/opengpu.db
+      - JWT_SECRET=dev-jwt-secret-change-in-production
+      - CORS_ORIGIN=*
+      - LOG_LEVEL=debug
+    volumes:
+      - ../packages/api:/app
+      - /app/node_modules
+      - api-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - opengpu-network
+
+  # ============================================
+  # GPU Agent
+  # ============================================
+  agent:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.agent
+    container_name: opengpu-agent
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=development
+      - AGENT_PORT=4000
+      - API_URL=http://api:3000
+      - AGENT_HEARTBEAT_INTERVAL=30000
+      - LOG_LEVEL=debug
+    volumes:
+      - ../packages/agent:/app
+      - /app/node_modules
+    restart: unless-stopped
+    networks:
+      - opengpu-network
+
+  # ============================================
+  # PostgreSQL (Optional - uncomment to use)
+  # ============================================
+  # postgres:
+  #   image: postgres:16-alpine
+  #   container_name: opengpu-postgres
+  #   ports:
+  #     - "5432:5432"
+  #   environment:
+  #     - POSTGRES_DB=opengpu
+  #     - POSTGRES_USER=postgres
+  #     - POSTGRES_PASSWORD=postgres
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - opengpu-network
+
+  # ============================================
+  # Redis (Optional - uncomment to use)
+  # ============================================
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: opengpu-redis
+  #   ports:
+  #     - "6379:6379"
+  #   command: redis-server --appendonly yes
+  #   volumes:
+  #     - redis-data:/data
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - opengpu-network
+
+# ============================================
+# Volumes
+# ============================================
+volumes:
+  api-data:
+  # postgres-data:
+  # redis-data:
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  opengpu-network:
+    driver: bridge

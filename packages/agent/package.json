@@ -1,0 +1,52 @@
+{
+  "name": "@opengpu/agent",
+  "version": "1.0.0",
+  "description": "OpenGPU Node Agent - Share your GPU with the network",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "lint": "eslint src/ --ext .ts",
+    "clean": "rm -rf dist"
+  },
+  "bin": {
+    "opengpu-agent": "./dist/index.js"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.7.4",
+    "systeminformation": "^5.21.22",
+    "dockerode": "^3.3.5",
+    "node-machine-id": "^1.1.12",
+    "dotenv": "^16.4.1",
+    "ws": "^8.16.0",
+    "node-cron": "^3.0.3",
+    "winston": "^3.11.0",
+    "axios": "^1.6.5",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "@types/dockerode": "^3.3.23",
+    "@types/ws": "^8.5.10",
+    "@types/node-cron": "^3.0.11",
+    "@types/uuid": "^9.0.7",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2",
+    "eslint": "^8.56.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT",
+  "keywords": [
+    "gpu",
+    "compute",
+    "sharing",
+    "nvidia",
+    "cuda",
+    "docker"
+  ]
+}

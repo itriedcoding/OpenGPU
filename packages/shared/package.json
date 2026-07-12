@@ -1,0 +1,20 @@
+{
+  "name": "@opengpu/shared",
+  "version": "1.0.0",
+  "description": "Shared types, constants, and utilities for OpenGPU",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["opengpu", "shared", "types"],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.4.0"
+  }
+}
