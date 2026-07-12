@@ -1,15 +1,17 @@
 import prisma from "../lib/prisma";
-import stripe from "../lib/stripe";
+import { getStripe } from "../lib/stripe";
 
 export class PaymentService {
   async createPaymentIntent(userId: string, amount: number, currency: string = "usd", metadata?: Record<string, string>) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error("User not found");
 
+    const stripeClient = getStripe();
+
     let customerId = user.stripeCustomerId;
 
     if (!customerId) {
-      const customer = await stripe.customers.create({
+      const customer = await stripeClient.customers.create({
         email: user.email,
         name: user.name,
         metadata: { userId },
@@ -21,7 +23,7 @@ export class PaymentService {
       });
     }
 
-    const paymentIntent = await stripe.paymentIntents.create({
+    const paymentIntent = await stripeClient.paymentIntents.create({
       amount: Math.round(amount * 100),
       currency,
       customer: customerId,
@@ -53,7 +55,8 @@ export class PaymentService {
     });
     if (!payment) throw new Error("Payment not found");
 
-    const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    const stripeClient = getStripe();
+    const intent = await stripeClient.paymentIntents.retrieve(paymentIntentId);
 
     if (intent.status === "succeeded") {
       const updated = await prisma.payment.update({

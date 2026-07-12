@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import prisma from "../lib/prisma";
-import { signAccessToken, signRefreshToken, verifyToken } from "../lib/jwt";
+import { signAccessToken, signRefreshToken, verifyTokenFn } from "../lib/jwt";
 
 const SALT_ROUNDS = 12;
 
@@ -21,7 +21,7 @@ export class AuthService {
     const accessToken = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
 
-    return { user, accessToken, refreshToken };
+    return { user, token: accessToken, refreshToken };
   }
 
   async login(email: string, password: string) {
@@ -40,11 +40,11 @@ export class AuthService {
     const refreshToken = signRefreshToken(payload);
 
     const { password: _, ...safeUser } = user;
-    return { user: safeUser, accessToken, refreshToken };
+    return { user: safeUser, token: accessToken, refreshToken };
   }
 
   async refreshToken(token: string) {
-    const decoded = verifyToken(token);
+    const decoded = verifyTokenFn(token);
     const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
     if (!user) {
       throw new Error("User not found");

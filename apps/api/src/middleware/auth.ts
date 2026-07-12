@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { verifyToken, JwtPayload } from "../lib/jwt";
+import { verifyTokenFn, JwtPayload } from "../lib/jwt";
 import prisma from "../lib/prisma";
 
 export interface AuthRequest extends Request {
@@ -16,7 +16,7 @@ export function verifyToken(req: AuthRequest, res: Response, next: NextFunction)
 
   const token = authHeader.split(" ")[1];
   try {
-    const decoded = verifyToken(token);
+    const decoded = verifyTokenFn(token);
     req.user = decoded;
     next();
   } catch (err) {
@@ -59,7 +59,7 @@ export function optionalAuth(req: AuthRequest, res: Response, next: NextFunction
 
   const token = authHeader.split(" ")[1];
   try {
-    const decoded = verifyToken(token);
+    const decoded = verifyTokenFn(token);
     req.user = decoded;
   } catch {
     // Token invalid but optional, continue without user

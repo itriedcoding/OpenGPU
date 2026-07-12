@@ -86,8 +86,8 @@ export function initializeWebSocket(httpServer: HttpServer): SocketIOServer {
     }
 
     try {
-      const { verifyToken } = await import("./lib/jwt");
-      const decoded = verifyToken(token);
+      const { verifyTokenFn } = await import("./lib/jwt");
+      const decoded = verifyTokenFn(token);
       (socket as any).user = decoded;
       next();
     } catch {
