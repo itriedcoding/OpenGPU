@@ -53,4 +53,7 @@ declare module "lucide-react" {
   export const Plus: Icon;
   export const Activity: Icon;
   export const Users: Icon;
+  export const Loader2: Icon;
+  export const LogOut: Icon;
+  export const User: Icon;
 }

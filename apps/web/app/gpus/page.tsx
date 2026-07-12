@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { mockGpus } from "@/lib/mock-data";
+import { useState, useEffect } from "react";
 import { GpuCard } from "@/components/GpuCard";
 import { FilterSidebar } from "@/components/FilterSidebar";
-import { SlidersHorizontal, Grid3X3, List } from "lucide-react";
+import { SlidersHorizontal, Grid3X3, List, Loader2 } from "lucide-react";
+import { fetchGPUs } from "@/lib/api";
+import { Gpu } from "@/lib/types";
 
 export default function GpuMarketplace() {
+  const [gpus, setGpus] = useState<Gpu[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [filters, setFilters] = useState({
     brand: "",
     minVram: 0,
@@ -16,28 +20,36 @@ export default function GpuMarketplace() {
   const [sortBy, setSortBy] = useState<"price" | "performance" | "rating">("price");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
-  const filteredGpus = useMemo(() => {
-    let gpus = [...mockGpus];
+  useEffect(() => {
+    loadGPUs();
+  }, []);
 
-    if (filters.brand) gpus = gpus.filter((g) => g.brand === filters.brand);
-    if (filters.minVram > 0) gpus = gpus.filter((g) => g.vram >= filters.minVram);
-    if (filters.maxPrice < 10) gpus = gpus.filter((g) => g.pricePerHour <= filters.maxPrice);
-    if (filters.availability) gpus = gpus.filter((g) => g.availability === filters.availability);
-
-    switch (sortBy) {
-      case "price":
-        gpus.sort((a, b) => a.pricePerHour - b.pricePerHour);
-        break;
-      case "performance":
-        gpus.sort((a, b) => b.performance.fp16 - a.performance.fp16);
-        break;
-      case "rating":
-        gpus.sort((a, b) => b.provider.rating - a.provider.rating);
-        break;
+  async function loadGPUs() {
+    try {
+      setLoading(true);
+      setError("");
+      const data = await fetchGPUs();
+      setGpus(data);
+    } catch (err: any) {
+      setError(err.message || "Failed to load GPUs");
+    } finally {
+      setLoading(false);
     }
+  }
 
-    return gpus;
-  }, [filters, sortBy]);
+  const filteredGpus = gpus
+    .filter((g) => !filters.brand || g.brand === filters.brand)
+    .filter((g) => filters.minVram <= 0 || g.vram >= filters.minVram)
+    .filter((g) => filters.maxPrice >= 10 || g.pricePerHour <= filters.maxPrice)
+    .filter((g) => !filters.availability || g.availability === filters.availability || g.status === filters.availability)
+    .sort((a, b) => {
+      switch (sortBy) {
+        case "price": return a.pricePerHour - b.pricePerHour;
+        case "performance": return (b.performance?.fp16 || 0) - (a.performance?.fp16 || 0);
+        case "rating": return (b.provider?.rating || 0) - (a.provider?.rating || 0);
+        default: return 0;
+      }
+    });
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -56,7 +68,7 @@ export default function GpuMarketplace() {
         <div className="flex-1">
           <div className="mb-6 flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
-              {filteredGpus.length} GPU{filteredGpus.length !== 1 ? "s" : ""} found
+              {loading ? "Loading..." : `${filteredGpus.length} GPU${filteredGpus.length !== 1 ? "s" : ""} found`}
             </p>
             <div className="flex items-center gap-4">
               <select
@@ -85,11 +97,25 @@ export default function GpuMarketplace() {
             </div>
           </div>
 
-          {filteredGpus.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-16">
+              <Loader2 className="mx-auto h-8 w-8 text-primary animate-spin" />
+              <p className="mt-4 text-muted-foreground">Loading GPUs from the network...</p>
+            </div>
+          ) : error ? (
+            <div className="text-center py-16">
+              <SlidersHorizontal className="mx-auto h-12 w-12 text-muted-foreground" />
+              <h3 className="mt-4 text-lg font-semibold text-foreground">Failed to load GPUs</h3>
+              <p className="mt-2 text-muted-foreground">{error}</p>
+              <button onClick={loadGPUs} className="btn-primary mt-4 text-sm px-4 py-2">
+                Retry
+              </button>
+            </div>
+          ) : filteredGpus.length === 0 ? (
             <div className="text-center py-16">
               <SlidersHorizontal className="mx-auto h-12 w-12 text-muted-foreground" />
               <h3 className="mt-4 text-lg font-semibold text-foreground">No GPUs found</h3>
-              <p className="mt-2 text-muted-foreground">Try adjusting your filters.</p>
+              <p className="mt-2 text-muted-foreground">Try adjusting your filters, or check back later as providers join the network.</p>
             </div>
           ) : (
             <div className={`grid gap-6 ${

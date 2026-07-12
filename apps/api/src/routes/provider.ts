@@ -14,37 +14,68 @@ router.get("/dashboard", async (req: AuthRequest, res: Response) => {
   try {
     const providerId = req.user!.userId;
 
-    const [totalNodes, activeNodes, totalRentals, activeRentals, totalEarnings, recentRentals] =
+    const [nodes, totalRentals, activeRentals, completedRentals] =
       await Promise.all([
-        prisma.gpuNode.count({ where: { providerId } }),
-        prisma.gpuNode.count({ where: { providerId, status: "rented" } }),
+        prisma.gpuNode.findMany({
+          where: { providerId },
+          include: {
+            metrics: { orderBy: { createdAt: "desc" }, take: 1 },
+            _count: { select: { rentals: true } },
+          },
+          orderBy: { createdAt: "desc" },
+        }),
         prisma.rental.count({ where: { gpuNode: { providerId } } }),
         prisma.rental.count({ where: { gpuNode: { providerId }, status: "active" } }),
-        prisma.rental.aggregate({
-          where: { gpuNode: { providerId }, status: "completed" },
-          _sum: { totalCost: true },
-        }),
         prisma.rental.findMany({
-          where: { gpuNode: { providerId } },
-          include: { gpuNode: { select: { name: true, model: true } }, user: { select: { name: true, email: true } } },
-          orderBy: { createdAt: "desc" },
-          take: 10,
+          where: { gpuNode: { providerId }, status: "completed" },
+          select: { totalCost: true, createdAt: true },
         }),
       ]);
 
-    const earnings = totalEarnings._sum.totalCost || 0;
+    const totalEarnings = completedRentals.reduce((sum, r) => sum + (r.totalCost || 0), 0);
+    const activeNodeCount = nodes.filter((n) => n.status === "available" || n.online).length;
+
+    const now = new Date();
+    const thisMonthRentals = completedRentals.filter((r) => {
+      const d = new Date(r.createdAt);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    });
+    const thisMonth = thisMonthRentals.reduce((sum, r) => sum + (r.totalCost || 0), 0);
+
+    const monthlyEarnings = Array(12).fill(0);
+    completedRentals.forEach((r) => {
+      const d = new Date(r.createdAt);
+      const month = d.getMonth();
+      if (d.getFullYear() === now.getFullYear()) {
+        monthlyEarnings[month] += r.totalCost || 0;
+      }
+    });
+
+    const avgUptime = nodes.length > 0
+      ? nodes.reduce((sum, n) => {
+          const latestMetric = n.metrics[0];
+          return sum + (latestMetric ? 100 : (n.online ? 99.9 : 0));
+        }, 0) / nodes.length
+      : 0;
+
+    const formattedNodes = nodes.map((n) => ({
+      id: n.id,
+      name: n.name,
+      gpu: n.model,
+      vram: n.vram,
+      status: n.online ? (n.status === "rented" ? "rented" : "online") : "offline",
+      uptime: n.online ? "99.9" : "0",
+      earnings: 0,
+      location: n.location,
+    }));
 
     res.json({
-      stats: {
-        totalNodes,
-        activeNodes,
-        offlineNodes: totalNodes - activeNodes,
-        totalRentals,
-        activeRentals,
-        totalEarnings: Math.round(earnings * 100) / 100,
-        estimatedPayout: Math.round(earnings * 0.8 * 100) / 100,
-      },
-      recentRentals,
+      totalEarnings: Math.round(totalEarnings * 100) / 100,
+      activeNodes: activeNodeCount,
+      avgUptime: Math.round(avgUptime * 100) / 100,
+      thisMonth: Math.round(thisMonth * 100) / 100,
+      nodes: formattedNodes,
+      monthlyEarnings: monthlyEarnings.map((e) => Math.round(e * 100) / 100),
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

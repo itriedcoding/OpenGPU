@@ -2,9 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Eye, EyeOff, Github, Mail, Check, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Eye, EyeOff, Check, X, Loader2 } from "lucide-react";
+import { signUp } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 export default function SignUpPage() {
+  const router = useRouter();
+  const { login } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,15 +39,24 @@ export default function SignUpPage() {
       setError("Passwords do not match.");
       return;
     }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
     if (!agreed) {
       setError("Please agree to the terms of service.");
       return;
     }
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const data = await signUp(name, email, password);
+      login(data.token, data.refreshToken, data.user);
+      router.push("/dashboard");
+    } catch (err: any) {
+      setError(err.message || "Failed to create account.");
+    } finally {
       setLoading(false);
-      window.location.href = "/dashboard";
-    }, 1000);
+    }
   };
 
   return (
@@ -71,6 +85,7 @@ export default function SignUpPage() {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="John Doe"
                 className="input-field mt-1"
+                disabled={loading}
               />
             </div>
 
@@ -82,6 +97,7 @@ export default function SignUpPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 className="input-field mt-1"
+                disabled={loading}
               />
             </div>
 
@@ -94,6 +110,7 @@ export default function SignUpPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   className="input-field pr-10"
+                  disabled={loading}
                 />
                 <button
                   type="button"
@@ -113,6 +130,7 @@ export default function SignUpPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
                 className="input-field mt-1"
+                disabled={loading}
               />
             </div>
 
@@ -157,6 +175,7 @@ export default function SignUpPage() {
                 checked={agreed}
                 onChange={(e) => setAgreed(e.target.checked)}
                 className="mt-0.5 accent-primary rounded"
+                disabled={loading}
               />
               <span>
                 I agree to the{" "}
@@ -175,27 +194,15 @@ export default function SignUpPage() {
               disabled={loading}
               className="btn-primary w-full disabled:opacity-50"
             >
-              {loading ? "Creating account..." : "Create Account"}
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Creating account...
+                </span>
+              ) : (
+                "Create Account"
+              )}
             </button>
           </form>
-
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">or continue with</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <button className="btn-outline flex items-center justify-center gap-2 text-sm">
-              <Github className="h-4 w-4" /> GitHub
-            </button>
-            <button className="btn-outline flex items-center justify-center gap-2 text-sm">
-              <Mail className="h-4 w-4" /> Google
-            </button>
-          </div>
         </div>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">

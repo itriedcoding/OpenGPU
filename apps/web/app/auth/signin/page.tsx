@@ -2,9 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Eye, EyeOff, Github, Mail } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { signIn } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 export default function SignInPage() {
+  const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -19,11 +24,15 @@ export default function SignInPage() {
       return;
     }
     setLoading(true);
-    // Mock sign in
-    setTimeout(() => {
+    try {
+      const data = await signIn(email, password);
+      login(data.token, data.refreshToken, data.user);
+      router.push("/dashboard");
+    } catch (err: any) {
+      setError(err.message || "Invalid email or password.");
+    } finally {
       setLoading(false);
-      window.location.href = "/dashboard";
-    }, 1000);
+    }
   };
 
   return (
@@ -52,6 +61,7 @@ export default function SignInPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 className="input-field mt-1"
+                disabled={loading}
               />
             </div>
 
@@ -64,6 +74,7 @@ export default function SignInPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   className="input-field pr-10"
+                  disabled={loading}
                 />
                 <button
                   type="button"
@@ -90,27 +101,15 @@ export default function SignInPage() {
               disabled={loading}
               className="btn-primary w-full disabled:opacity-50"
             >
-              {loading ? "Signing in..." : "Sign In"}
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Signing in...
+                </span>
+              ) : (
+                "Sign In"
+              )}
             </button>
           </form>
-
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">or continue with</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <button className="btn-outline flex items-center justify-center gap-2 text-sm">
-              <Github className="h-4 w-4" /> GitHub
-            </button>
-            <button className="btn-outline flex items-center justify-center gap-2 text-sm">
-              <Mail className="h-4 w-4" /> Google
-            </button>
-          </div>
         </div>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">

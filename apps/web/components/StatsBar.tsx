@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Cpu, Users, Activity } from "lucide-react";
+import { fetchPlatformStats } from "@/lib/api";
 
 function AnimatedNumber({ target, suffix = "" }: { target: number; suffix?: string }) {
   const [count, setCount] = useState(0);
@@ -31,24 +32,44 @@ function AnimatedNumber({ target, suffix = "" }: { target: number; suffix?: stri
   );
 }
 
-const stats = [
-  { icon: Cpu, label: "GPUs Available", value: 10000, suffix: "+" },
-  { icon: Users, label: "Active Providers", value: 500, suffix: "+" },
-  { icon: Activity, label: "Uptime SLA", value: 99, suffix: ".9%" },
-];
-
 export function StatsBar() {
+  const [stats, setStats] = useState({ totalGpus: 0, totalProviders: 0, uptime: 99.9 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchPlatformStats()
+      .then((data) => {
+        setStats({
+          totalGpus: data.totalGpus || 0,
+          totalProviders: data.totalProviders || 0,
+          uptime: data.uptime || 99.9,
+        });
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const statsData = [
+    { icon: Cpu, label: "GPUs Available", value: stats.totalGpus, suffix: "+" },
+    { icon: Users, label: "Active Providers", value: stats.totalProviders, suffix: "+" },
+    { icon: Activity, label: "Uptime SLA", value: Math.floor(stats.uptime), suffix: `.${Math.round((stats.uptime % 1) * 10)}%` },
+  ];
+
   return (
     <section className="relative -mt-8 z-10 mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
       <div className="glass-panel grid grid-cols-1 divide-y sm:divide-y-0 sm:divide-x sm:grid-cols-3 p-6 sm:p-8">
-        {stats.map((stat) => (
+        {statsData.map((stat) => (
           <div key={stat.label} className="flex items-center justify-center gap-4 px-4 py-4 sm:py-0">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
               <stat.icon className="h-6 w-6 text-primary" />
             </div>
             <div>
               <div className="text-2xl font-bold text-foreground">
-                <AnimatedNumber target={stat.value} suffix={stat.suffix} />
+                {loading ? (
+                  <span className="inline-block h-7 w-16 animate-pulse rounded bg-muted" />
+                ) : (
+                  <AnimatedNumber target={stat.value} suffix={stat.suffix} />
+                )}
               </div>
               <div className="text-sm text-muted-foreground">{stat.label}</div>
             </div>

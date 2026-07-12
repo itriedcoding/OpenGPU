@@ -1,27 +1,85 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { mockGpus, Gpu } from "@/lib/mock-data";
+import { fetchGpuById, startRental } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import { formatCurrency } from "@/lib/utils";
-import { ArrowLeft, Star, MapPin, Zap, Clock, Shield, Cpu, Wifi, Thermometer, CreditCard, ChevronRight } from "lucide-react";
+import { Gpu } from "@/lib/types";
+import { ArrowLeft, Star, MapPin, Zap, Shield, Cpu, Wifi, Thermometer, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 export default function GpuDetailPage() {
   const params = useParams();
+  const router = useRouter();
+  const { token, isAuthenticated } = useAuth();
   const [gpu, setGpu] = useState<Gpu | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [duration, setDuration] = useState(1);
   const [durationUnit, setDurationUnit] = useState<"hours" | "days" | "months">("hours");
+  const [renting, setRenting] = useState(false);
+  const [rentalError, setRentalError] = useState("");
 
   useEffect(() => {
-    const found = mockGpus.find((g) => g.id === params.id);
-    if (found) setGpu(found);
+    if (params.id) {
+      loadGpu(params.id as string);
+    }
   }, [params.id]);
 
-  if (!gpu) {
+  async function loadGpu(id: string) {
+    try {
+      setLoading(true);
+      const data = await fetchGpuById(id);
+      setGpu(data);
+    } catch (err: any) {
+      setError(err.message || "GPU not found");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRent() {
+    if (!isAuthenticated || !token || !gpu) {
+      router.push("/auth/signin");
+      return;
+    }
+
+    try {
+      setRenting(true);
+      setRentalError("");
+      const durationHours = durationUnit === "hours" ? duration : durationUnit === "days" ? duration * 24 : duration * 24 * 30;
+      await startRental(gpu.id, token, durationHours);
+      router.push("/dashboard");
+    } catch (err: any) {
+      setRentalError(err.message || "Failed to start rental");
+    } finally {
+      setRenting(false);
+    }
+  }
+
+  const getTotalCost = () => {
+    if (!gpu) return 0;
+    switch (durationUnit) {
+      case "hours": return gpu.pricePerHour * duration;
+      case "days": return gpu.pricePerHour * 24 * duration;
+      case "months": return (gpu.pricePerMonth || gpu.pricePerHour * 24 * 30) * duration;
+    }
+  };
+
+  if (loading) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-16 text-center">
-        <p className="text-muted-foreground">GPU not found.</p>
+        <Loader2 className="mx-auto h-8 w-8 text-primary animate-spin" />
+        <p className="mt-4 text-muted-foreground">Loading GPU details...</p>
+      </div>
+    );
+  }
+
+  if (error || !gpu) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-16 text-center">
+        <p className="text-muted-foreground">{error || "GPU not found."}</p>
         <Link href="/gpus" className="btn-primary mt-4 inline-flex items-center gap-2">
           <ArrowLeft className="h-4 w-4" /> Back to Marketplace
         </Link>
@@ -29,21 +87,13 @@ export default function GpuDetailPage() {
     );
   }
 
-  const getTotalCost = () => {
-    switch (durationUnit) {
-      case "hours": return gpu.pricePerHour * duration;
-      case "days": return gpu.pricePerHour * 24 * duration;
-      case "months": return gpu.pricePerMonth * duration;
-    }
-  };
-
   const specs = [
-    { icon: Cpu, label: "CUDA Cores", value: gpu.specs.cores.toLocaleString() },
-    { icon: Zap, label: "Boost Clock", value: gpu.specs.boostClock },
-    { icon: Thermometer, label: "TDP", value: gpu.specs.tdp },
-    { icon: Wifi, label: "Interface", value: gpu.specs.interface },
-    { icon: Thermometer, label: "Cooling", value: gpu.specs.cooling },
-    { icon: Wifi, label: "Network", value: gpu.specs.networkSpeed },
+    { icon: Cpu, label: "CUDA Cores", value: (gpu.specs?.cores || 0).toLocaleString() },
+    { icon: Zap, label: "Boost Clock", value: gpu.specs?.boostClock || "N/A" },
+    { icon: Thermometer, label: "TDP", value: gpu.specs?.tdp || "N/A" },
+    { icon: Wifi, label: "Interface", value: gpu.specs?.interface || "N/A" },
+    { icon: Thermometer, label: "Cooling", value: gpu.specs?.cooling || "N/A" },
+    { icon: Wifi, label: "Network", value: gpu.specs?.networkSpeed || "N/A" },
   ];
 
   return (
@@ -59,7 +109,7 @@ export default function GpuDetailPage() {
               <div>
                 <div className="flex items-center gap-3">
                   <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10 text-lg font-bold text-primary">
-                    {gpu.brand === "NVIDIA" ? "N" : "A"}
+                    {gpu.brand === "NVIDIA" ? "N" : gpu.brand === "AMD" ? "A" : "I"}
                   </div>
                   <div>
                     <h1 className="text-2xl font-bold text-foreground">{gpu.name}</h1>
@@ -68,24 +118,28 @@ export default function GpuDetailPage() {
                 </div>
               </div>
               <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium ${
-                gpu.availability === "available" ? "bg-green-500/10 text-green-400" :
-                gpu.availability === "limited" ? "bg-yellow-500/10 text-yellow-400" :
+                gpu.status === "available" || gpu.availability === "available" ? "bg-green-500/10 text-green-400" :
+                gpu.status === "limited" || gpu.availability === "limited" ? "bg-yellow-500/10 text-yellow-400" :
                 "bg-red-500/10 text-red-400"
               }`}>
                 <span className={`h-2 w-2 rounded-full ${
-                  gpu.availability === "available" ? "bg-green-400" :
-                  gpu.availability === "limited" ? "bg-yellow-400" : "bg-red-400"
+                  gpu.status === "available" || gpu.availability === "available" ? "bg-green-400" :
+                  gpu.status === "limited" || gpu.availability === "limited" ? "bg-yellow-400" : "bg-red-400"
                 }`} />
-                {gpu.availability === "available" ? "Available Now" :
-                 gpu.availability === "limited" ? "Limited Availability" : "Unavailable"}
+                {gpu.status === "available" || gpu.availability === "available" ? "Available Now" :
+                 gpu.status === "limited" || gpu.availability === "limited" ? "Limited Availability" : "Unavailable"}
               </span>
             </div>
-            <p className="mt-4 text-muted-foreground leading-relaxed">{gpu.description}</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {gpu.tags.map((tag) => (
-                <span key={tag} className="rounded-lg bg-muted px-3 py-1 text-xs text-muted-foreground">{tag}</span>
-              ))}
-            </div>
+            {gpu.description && (
+              <p className="mt-4 text-muted-foreground leading-relaxed">{gpu.description}</p>
+            )}
+            {gpu.tags && gpu.tags.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {gpu.tags.map((tag) => (
+                  <span key={tag} className="rounded-lg bg-muted px-3 py-1 text-xs text-muted-foreground">{tag}</span>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="glass-panel p-6 sm:p-8">
@@ -103,54 +157,31 @@ export default function GpuDetailPage() {
             </div>
           </div>
 
-          <div className="glass-panel p-6 sm:p-8">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Performance Benchmarks</h2>
-            <div className="space-y-4">
-              {[
-                { label: "FP32 (Single Precision)", value: gpu.performance.fp32, max: 200 },
-                { label: "FP16 (Half Precision)", value: gpu.performance.fp16, max: 1000 },
-                { label: "TF32 (TensorFloat)", value: gpu.performance.tf32, max: 1000 },
-              ].map((bench) => (
-                <div key={bench.label}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-muted-foreground">{bench.label}</span>
-                    <span className="font-medium text-foreground">{bench.value} TFLOPS</span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-primary to-secondary rounded-full transition-all duration-500"
-                      style={{ width: `${(bench.value / bench.max) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="glass-panel p-6 sm:p-8">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Reviews</h2>
-            <div className="space-y-4">
-              {[
-                { name: "Alex M.", rating: 5, text: "Excellent GPU for training. Zero downtime in 2 weeks of continuous use." },
-                { name: "Jordan K.", rating: 4, text: "Great performance, slightly higher latency than expected from this region." },
-              ].map((review, i) => (
-                <div key={i} className="border-b border-border/50 pb-4 last:border-0 last:pb-0">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                      {review.name.split(" ").map((n) => n[0]).join("")}
+          {gpu.performance && (
+            <div className="glass-panel p-6 sm:p-8">
+              <h2 className="text-lg font-semibold text-foreground mb-4">Performance Benchmarks</h2>
+              <div className="space-y-4">
+                {[
+                  { label: "FP32 (Single Precision)", value: gpu.performance.fp32 || 0, max: 200 },
+                  { label: "FP16 (Half Precision)", value: gpu.performance.fp16 || 0, max: 1000 },
+                  { label: "TF32 (TensorFloat)", value: gpu.performance.tf32 || 0, max: 1000 },
+                ].map((bench) => (
+                  <div key={bench.label}>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-muted-foreground">{bench.label}</span>
+                      <span className="font-medium text-foreground">{bench.value} TFLOPS</span>
                     </div>
-                    <span className="text-sm font-medium text-foreground">{review.name}</span>
-                    <div className="flex gap-0.5">
-                      {Array.from({ length: review.rating }).map((_, j) => (
-                        <Star key={j} className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                      ))}
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-primary to-secondary rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min((bench.value / bench.max) * 100, 100)}%` }}
+                      />
                     </div>
                   </div>
-                  <p className="mt-2 text-sm text-muted-foreground">{review.text}</p>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div className="lg:col-span-1">
@@ -161,6 +192,11 @@ export default function GpuDetailPage() {
                 <div className="text-3xl font-bold text-foreground">{formatCurrency(gpu.pricePerHour)}</div>
                 <div className="text-sm text-muted-foreground">per hour</div>
               </div>
+              {rentalError && (
+                <div className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+                  {rentalError}
+                </div>
+              )}
               <div className="space-y-3">
                 <div>
                   <label className="text-sm font-medium text-foreground">Duration</label>
@@ -189,7 +225,7 @@ export default function GpuDetailPage() {
                     <span className="font-medium text-foreground">{formatCurrency(getTotalCost())}</span>
                   </div>
                   <div className="flex justify-between text-sm mt-1">
-                    <span className="text-muted-foreground">Service fee</span>
+                    <span className="text-muted-foreground">Service fee (5%)</span>
                     <span className="font-medium text-foreground">{formatCurrency(getTotalCost() * 0.05)}</span>
                   </div>
                   <div className="mt-2 flex justify-between border-t border-border pt-2">
@@ -197,8 +233,24 @@ export default function GpuDetailPage() {
                     <span className="font-bold text-foreground">{formatCurrency(getTotalCost() * 1.05)}</span>
                   </div>
                 </div>
-                <button className="btn-primary w-full">Rent Now</button>
-                <p className="text-xs text-center text-muted-foreground">No commitment. Cancel anytime.</p>
+                <button
+                  onClick={handleRent}
+                  disabled={renting || (gpu.status !== "available" && gpu.availability !== "available")}
+                  className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {renting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Starting...
+                    </span>
+                  ) : (
+                    "Rent Now"
+                  )}
+                </button>
+                {!isAuthenticated && (
+                  <p className="text-xs text-center text-muted-foreground">
+                    <Link href="/auth/signin" className="text-primary hover:text-primary-400">Sign in</Link> to rent GPUs
+                  </p>
+                )}
               </div>
             </div>
 
@@ -206,13 +258,13 @@ export default function GpuDetailPage() {
               <h3 className="font-semibold text-foreground mb-3">Provider</h3>
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                  {gpu.provider.avatar}
+                  {gpu.provider?.name?.[0] || "P"}
                 </div>
                 <div>
-                  <div className="text-sm font-medium text-foreground">{gpu.provider.name}</div>
+                  <div className="text-sm font-medium text-foreground">{gpu.provider?.name || "Unknown Provider"}</div>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                    {gpu.provider.rating} · {gpu.provider.totalRentals} rentals
+                    {gpu.provider?.rating || 0} · {gpu.provider?.totalRentals || 0} rentals
                   </div>
                 </div>
               </div>

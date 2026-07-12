@@ -4,6 +4,7 @@ import { validate } from "../middleware/validate";
 import { verifyToken, optionalAuth, AuthRequest } from "../middleware/auth";
 import { requireRole } from "../middleware/auth";
 import gpuService from "../services/gpu";
+import prisma from "../lib/prisma";
 
 const router = Router();
 
@@ -62,10 +63,23 @@ const heartbeatSchema = z.object({
   agentVersion: z.string().optional(),
 });
 
+router.get("/stats", async (_req: Request, res: Response) => {
+  try {
+    const [totalGpus, totalProviders, totalRentals] = await Promise.all([
+      prisma.gpuNode.count(),
+      prisma.user.count({ where: { role: "provider" } }),
+      prisma.rental.count(),
+    ]);
+    res.json({ totalGpus, totalProviders, totalRentals, uptime: 99.9 });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get("/", optionalAuth, validate(listGpusSchema, "query"), async (req: Request, res: Response) => {
   try {
     const result = await gpuService.listGpus(req.query as any);
-    res.json(result);
+    res.json({ nodes: result.gpus, pagination: result.pagination });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
