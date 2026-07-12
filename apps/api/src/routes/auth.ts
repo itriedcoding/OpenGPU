@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Response } from "express";
 import { z } from "zod";
 import { validate } from "../middleware/validate";
 import { authLimiter } from "../middleware/rateLimit";
@@ -31,7 +31,7 @@ const resetPasswordSchema = z.object({
   password: z.string().min(8),
 });
 
-router.post("/register", authLimiter, validate(registerSchema), async (req: Request, res: Response) => {
+router.post("/register", authLimiter, validate(registerSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { email, password, name } = req.body;
     const result = await authService.register(email, password, name);
@@ -41,7 +41,7 @@ router.post("/register", authLimiter, validate(registerSchema), async (req: Requ
   }
 });
 
-router.post("/login", authLimiter, validate(loginSchema), async (req: Request, res: Response) => {
+router.post("/login", authLimiter, validate(loginSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { email, password } = req.body;
     const result = await authService.login(email, password);
@@ -51,7 +51,7 @@ router.post("/login", authLimiter, validate(loginSchema), async (req: Request, r
   }
 });
 
-router.post("/refresh", validate(refreshSchema), async (req: Request, res: Response) => {
+router.post("/refresh", validate(refreshSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { refreshToken } = req.body;
     const result = await authService.refreshToken(refreshToken);
@@ -70,7 +70,7 @@ router.get("/me", verifyToken, async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.post("/forgot-password", authLimiter, validate(forgotPasswordSchema), async (req: Request, res: Response) => {
+router.post("/forgot-password", authLimiter, validate(forgotPasswordSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { email } = req.body;
     const result = await authService.forgotPassword(email);
@@ -80,7 +80,7 @@ router.post("/forgot-password", authLimiter, validate(forgotPasswordSchema), asy
   }
 });
 
-router.post("/reset-password", validate(resetPasswordSchema), async (req: Request, res: Response) => {
+router.post("/reset-password", validate(resetPasswordSchema), async (req: AuthRequest, res: Response) => {
   try {
     const { token, password } = req.body;
     const result = await authService.resetPassword(token, password);

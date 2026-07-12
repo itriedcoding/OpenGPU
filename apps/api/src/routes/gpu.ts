@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Response } from "express";
 import { z } from "zod";
 import { validate } from "../middleware/validate";
 import { verifyToken, optionalAuth, AuthRequest } from "../middleware/auth";
@@ -63,7 +63,7 @@ const heartbeatSchema = z.object({
   agentVersion: z.string().optional(),
 });
 
-router.get("/stats", async (_req: Request, res: Response) => {
+router.get("/stats", async (_req: AuthRequest, res: Response) => {
   try {
     const [totalGpus, totalProviders, totalRentals] = await Promise.all([
       prisma.gpuNode.count(),
@@ -76,7 +76,7 @@ router.get("/stats", async (_req: Request, res: Response) => {
   }
 });
 
-router.get("/", optionalAuth, validate(listGpusSchema, "query"), async (req: Request, res: Response) => {
+router.get("/", optionalAuth, validate(listGpusSchema, "query"), async (req: AuthRequest, res: Response) => {
   try {
     const result = await gpuService.listGpus(req.query as any);
     res.json({ nodes: result.gpus, pagination: result.pagination });
@@ -85,7 +85,7 @@ router.get("/", optionalAuth, validate(listGpusSchema, "query"), async (req: Req
   }
 });
 
-router.get("/:id", async (req: Request, res: Response) => {
+router.get("/:id", async (req: AuthRequest, res: Response) => {
   try {
     const gpu = await gpuService.getGpu(req.params.id);
     res.json({ gpu });
@@ -138,7 +138,7 @@ router.delete(
   }
 );
 
-router.get("/:id/metrics", async (req: Request, res: Response) => {
+router.get("/:id/metrics", async (req: AuthRequest, res: Response) => {
   try {
     const hours = parseInt(req.query.hours as string) || 24;
     const metrics = await gpuService.getMetrics(req.params.id, hours);
@@ -148,7 +148,7 @@ router.get("/:id/metrics", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/:id/heartbeat", validate(heartbeatSchema), async (req: Request, res: Response) => {
+router.post("/:id/heartbeat", validate(heartbeatSchema), async (req: AuthRequest, res: Response) => {
   try {
     const apiKey = req.headers["x-api-key"] as string;
     if (!apiKey) {

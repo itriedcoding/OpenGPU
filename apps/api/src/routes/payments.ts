@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Response } from "express";
 import { z } from "zod";
 import { validate } from "../middleware/validate";
 import { verifyToken, AuthRequest } from "../middleware/auth";
@@ -57,7 +57,7 @@ router.get("/history", async (req: AuthRequest, res: Response) => {
   }
 });
 
-router.post("/webhook", async (req: Request, res: Response) => {
+router.post("/webhook", async (req: AuthRequest, res: Response) => {
   try {
     const sig = req.headers["stripe-signature"] as string;
     if (!sig) {

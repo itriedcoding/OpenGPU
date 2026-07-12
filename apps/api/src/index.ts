@@ -50,7 +50,7 @@ app.use((_req, res) => {
 });
 
 // Error handler
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((err: Error, _req: any, res: any, _next: any) => {
   console.error("[ERROR]", err.message, err.stack);
   res.status(500).json({
     error: process.env.NODE_ENV === "production"

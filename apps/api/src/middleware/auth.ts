@@ -1,13 +1,14 @@
-import { Request, Response, NextFunction } from "express";
+import { Response, NextFunction } from "express";
 import { verifyTokenFn, JwtPayload } from "../lib/jwt";
 import prisma from "../lib/prisma";
 
-export interface AuthRequest extends Request {
-  user?: JwtPayload;
-  dbUser?: any;
+export interface AuthRequest {
+  headers: any;
   body: any;
   query: any;
   params: any;
+  user?: JwtPayload;
+  dbUser?: any;
 }
 
 export function verifyToken(req: AuthRequest, res: Response, next: NextFunction): void {
